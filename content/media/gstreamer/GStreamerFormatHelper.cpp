@@ -54,9 +54,27 @@ GStreamerFormatHelper::GStreamerFormatHelper()
   : mFactories(nullptr),
     mCookie(static_cast<uint32_t>(-1))
 {
+  unsigned int i;
+
+  mSupportedContainerCaps = gst_caps_new_empty();
+  for (i = 0; i < G_N_ELEMENTS(mContainers); i++) {
+    const char* capsString = mContainers[i][1];
+    GstCaps* caps = gst_caps_from_string(capsString);
+    gst_caps_append(mSupportedContainerCaps, caps);
+  }
+
+  mSupportedCodecCaps = gst_caps_new_empty();
+  for (i = 0; i < G_N_ELEMENTS(mCodecs); i++) {
+    const char* capsString = mCodecs[i][1];
+    GstCaps* caps = gst_caps_from_string(capsString);
+    gst_caps_append(mSupportedCodecCaps, caps);
+  }
 }
 
 GStreamerFormatHelper::~GStreamerFormatHelper() {
+  gst_caps_unref(mSupportedContainerCaps);
+  gst_caps_unref(mSupportedCodecCaps);
+
   if (mFactories)
     g_list_free(mFactories);
 }
@@ -146,6 +164,16 @@ bool GStreamerFormatHelper::HaveElementsToProcessCaps(GstCaps* aCaps) {
   }
 
   return true;
+}
+
+bool GStreamerFormatHelper::CanHandleContainerCaps(GstCaps* aCaps)
+{
+  return gst_caps_can_intersect(aCaps, mSupportedContainerCaps);
+}
+
+bool GStreamerFormatHelper::CanHandleCodecCaps(GstCaps* aCaps)
+{
+  return gst_caps_can_intersect(aCaps, mSupportedCodecCaps);
 }
 
 GList* GStreamerFormatHelper::GetFactories() {

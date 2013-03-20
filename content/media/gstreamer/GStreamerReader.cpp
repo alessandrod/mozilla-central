@@ -9,6 +9,7 @@
 #include "AbstractMediaDecoder.h"
 #include "MediaResource.h"
 #include "GStreamerReader.h"
+#include "GStreamerFormatHelper.h"
 #include "VideoUtils.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/Preferences.h"
@@ -296,6 +297,9 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
     }
   }
 
+  if (!NS_FAILED(ret))
+    ret = CheckSupportedFormats();
+
   if (NS_FAILED(ret))
     /* we couldn't get this to play */
     return ret;
@@ -339,6 +343,62 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
    * the appsinks */
   gst_element_set_state(mPlayBin, GST_STATE_PLAYING);
 
+  return NS_OK;
+}
+
+nsresult GStreamerReader::CheckSupportedFormats()
+{
+  bool done = false;
+  bool unsupported = false;
+  GstElement* element;
+  GstElementFactory* factory;
+  const char* klass;
+  GstCaps* caps;
+  GstPad* pad;
+
+  GstIterator *it = gst_bin_iterate_recurse(GST_BIN(mPlayBin));
+  GstIteratorResult res;
+  while(!done) {
+    res = gst_iterator_next(it, (void **)&element);
+    switch(res) {
+      case GST_ITERATOR_OK:
+        factory = gst_element_get_factory(element);
+        if (factory) {
+          klass = gst_element_factory_get_klass(factory);
+          pad = gst_element_get_pad(element, "sink");
+          if (pad) {
+            caps = gst_pad_get_negotiated_caps(pad);
+
+            if (caps) {
+              if (strstr (klass, "Demuxer"))
+                unsupported = !GStreamerFormatHelper::Instance()->CanHandleContainerCaps(caps);
+              else if (strstr (klass, "Decoder"))
+                unsupported = !GStreamerFormatHelper::Instance()->CanHandleCodecCaps(caps);
+
+              gst_caps_unref(caps);
+            }
+            gst_object_unref(pad);
+          }
+        }
+
+        gst_object_unref(element);
+        done = unsupported;
+        break;
+      case GST_ITERATOR_RESYNC:
+        unsupported = false;
+        done = false;
+        break;
+      case GST_ITERATOR_ERROR:
+        done = true;
+        break;
+      case GST_ITERATOR_DONE:
+        done = true;
+        break;
+    }
+  }
+
+  if (unsupported)
+    return NS_ERROR_FAILURE;
   return NS_OK;
 }
 

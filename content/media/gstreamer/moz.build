@@ -21,6 +21,15 @@ CPP_SOURCES += [
     'GStreamerLoader.cpp',
 ]
 
+if CONFIG['GST_API_VERSION'] == '1.0':
+    CPP_SOURCES += [
+        'GStreamerAllocator.cpp',
+    ]
+else:
+    CPP_SOURCES += [
+        'GStreamerReader-0.10.cpp',
+        'GStreamerMozVideoBuffer.cpp'
+    ]
 LIBRARY_NAME = 'gkcongstreamer_s'
 
 FAIL_ON_WARNINGS = True
